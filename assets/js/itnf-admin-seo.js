@@ -1,0 +1,10 @@
+(function($){
+    var rows=$('#itnf-seo-rows'), reload=$('#itnf-seo-reload'), gen=$('#itnf-seo-generate'), applyBtn=$('#itnf-seo-apply'), selAll=$('#itnf-seo-select-all'), overwrite=$('#itnf-seo-overwrite'), log=$('#itnf-seo-log'), status=$('#itnf-seo-status');
+    function load(){ rows.html('<tr><td colspan="6">Loading…</td></tr>'); $.post(itnf_ajax.ajax_url,{action:'itnf_seo_list', _wpnonce:itnf_ajax.nonce}, function(res){ if(!(res && res.success)){ rows.html('<tr><td colspan="6">Failed</td></tr>'); return; } var list=res.data.rows||[]; var html=''; if(!list.length){ html='<tr><td colspan="6">No Tech News</td></tr>'; } else { list.forEach(function(r){ html+='<tr><td><input type="checkbox" class="itnf-seo-cb" value="'+r.ID+'"></td><td>'+r.words+'</td><td>'+r.title+'</td><td>'+(r.focus||'')+'</td><td>'+(r.desc||'')+'</td><td>'+r.ID+'</td></tr>';}); } rows.html(html); }); }
+    function ids(){ var out=[]; rows.find('.itnf-seo-cb:checked').each(function(){ out.push($(this).val()); }); return out; }
+    reload.on('click', load);
+    selAll.on('change', function(){ rows.find('.itnf-seo-cb').prop('checked', this.checked); });
+    gen.on('click', function(){ var sel=ids(); if(!sel.length){ alert('Select at least one'); return; } status.text('Generating…'); log.empty(); $.post(itnf_ajax.ajax_url,{action:'itnf_seo_generate', _wpnonce:itnf_ajax.nonce, overwrite: overwrite.is(':checked')?1:0, ids:JSON.stringify(sel)}, function(res){ if(res && res.success){ (res.data.messages||[]).forEach(function(m){ log.append($('<div/>').text(m)); }); status.text('Done'); } else { status.text('Failed'); } }); });
+    applyBtn.on('click', function(){ var sel=ids(); if(!sel.length){ alert('Select at least one'); return; } status.text('Applying…'); $.post(itnf_ajax.ajax_url,{action:'itnf_seo_apply', _wpnonce:itnf_ajax.nonce, ids:JSON.stringify(sel)}, function(res){ if(res && res.success){ (res.data.messages||[]).forEach(function(m){ log.append($('<div/>').text(m)); }); status.text('Done'); } else { status.text('Failed'); } }); });
+    load();
+})(jQuery);

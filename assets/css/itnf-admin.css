@@ -1,0 +1,11 @@
+.itnf-log{margin-top:8px;max-height:360px;overflow:auto;border:1px solid #ccd0d4;background:#fff;padding:10px;font-family:monospace;white-space:pre-wrap;}
+.itnf-table-wrap{border:1px solid #ccd0d4;background:#fff;margin-top:8px;}
+/* Bulk Rewrite layout polish */
+.itnf-inline-status { margin-left: 10px; }
+.itnf-bulk-table .column-word_count { width: 120px; text-align: right; }
+.itnf-bulk-table .column-post_id   { width: 100px; text-align: right; }
+.itnf-bulk-table .column-date      { width: 180px; white-space: nowrap; }
+.itnf-bulk-table .column-title     { width: auto; max-width: 0; }
+.itnf-bulk-table td.column-title .row-title { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itnf-table-wrap { margin-top: 8px; }
+.itnf-bulk-table thead th { position: sticky; top: 0; z-index: 5; background: #fff; }
