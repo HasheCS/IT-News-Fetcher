@@ -34,6 +34,8 @@ require_once ITNF_PLUGIN_DIR.'includes/class-itnf-cron.php';
 require_once ITNF_PLUGIN_DIR.'includes/class-itnf-ajax-fetch.php';
 require_once ITNF_PLUGIN_DIR.'includes/class-itnf-ajax-seo.php';
 require_once ITNF_PLUGIN_DIR.'includes/class-itnf-wrappers.php';
+require_once ITNF_PLUGIN_DIR.'includes/class-itnf-archives.php';
+
 
 require_once ITNF_PLUGIN_DIR.'admin/class-itnf-admin.php';
 

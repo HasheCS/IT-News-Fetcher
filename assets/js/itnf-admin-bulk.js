@@ -18,30 +18,36 @@
       var rows = res.data.rows;
       if(!rows.length){ setEmpty('No items found'); return; }
 
-      var html = rows.map(function(r){
-        var id   = parseInt(r.post_id,10) || 0;
-        var url  = r.permalink || '';
-        var edit = r.edit_link || '';
-        var wc   = parseInt(r.word_count,10) || 0;
-        var date = r.date || '';
-        var title= r.title || '';
+      var html = (res.data.rows || []).map(function(r){
+  // use Rank Math style keys
+  var id = Number.parseInt(r.ID, 10);
+  id = Number.isFinite(id) ? id : 0;
 
-        return ''+
-          '<tr>' +
-            '<th scope="row" class="check-column"><input type="checkbox" class="itnf-row" value="'+id+'"/></th>' +
-            '<td class="column-word_count num">'+ wc.toLocaleString() +'</td>' +
-            '<td class="column-title has-row-actions page-title">' +
-              '<strong><a class="row-title" href="'+edit+'">'+ _.escape(title) +'</a></strong>' +
-              '<div class="row-actions">' +
-                '<span class="view"><a href="'+url+'" target="_blank">View</a> | </span>' +
-                '<span class="edit"><a href="'+edit+'">Edit</a> | </span>' +
-                '<span class="rewrite"><a href="#" class="itnf-rewrite-one" data-id="'+id+'">Rewrite</a></span>' +
-              '</div>' +
-            '</td>' +
-            '<td class="column-post_id num">'+ id +'</td>' +
-            '<td class="column-date">'+ _.escape(date) +'</td>' +
-          '</tr>';
-      }).join('');
+  var wcNum = Number(r.words);
+  var wcTxt = Number.isFinite(wcNum) ? wcNum.toLocaleString() : '—';
+
+  var date  = r.date || '';
+  var title = r.title || '';
+  var edit  = r.edit  || '#';
+  var url   = r.permalink || ''; // optional; may be empty
+
+  return ''+
+    '<tr>' +
+      '<th scope="row" class="check-column"><input type="checkbox" class="itnf-row" value="'+id+'"/></th>' +
+      '<td class="column-word_count num">'+ wcTxt +'</td>' +
+      '<td class="column-title has-row-actions page-title">' +
+        '<strong><a class="row-title" href="'+edit+'">'+ _.escape(title) +'</a></strong>' +
+        '<div class="row-actions">' +
+          (url ? '<span class="view"><a href="'+url+'" target="_blank">View</a> | </span>' : '') +
+          '<span class="edit"><a href="'+edit+'">Edit</a> | </span>' +
+          '<span class="rewrite"><a href="#" class="itnf-rewrite-one" data-id="'+id+'">Rewrite</a></span>' +
+        '</div>' +
+      '</td>' +
+      '<td class="column-post_id num">'+ id +'</td>' +
+      '<td class="column-date">'+ _.escape(date) +'</td>' +
+    '</tr>';
+}).join('');
+
 
       $rows.html(html);
     }).fail(function(){ setEmpty('Failed'); });
