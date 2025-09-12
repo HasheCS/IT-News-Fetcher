@@ -1,12 +1,12 @@
 <?php if (!defined('ABSPATH')) { exit; } ?>
 <p><?php esc_html_e('Select feeds to Check (count potential new posts) or Fetch individually, or use “Fetch Selected”.','it-news-fetcher'); ?></p>
 <p>
-    <button id="itnf-fetch-selected" class="button button-primary" disabled><?php esc_html_e('Fetch Selected','it-news-fetcher'); ?></button>
+    <button id="itnf-fetch-selected" class="button button-primary"><?php esc_html_e('Fetch Selected','it-news-fetcher'); ?></button>
     <button id="itnf-stop-run" class="button" disabled><?php esc_html_e('Stop','it-news-fetcher'); ?></button>
     <span id="itnf-status" style="margin-left:10px;"></span>
 </p>
 <h3 style="margin-top:16px;"><?php esc_html_e('Live Log','it-news-fetcher'); ?></h3>
-<div id="itnf-log" class="itnf-log"></div>
+<div id="itnf-log" class="itnf-log" aria-live="polite"></div>
 <div class="itnf-table-wrap">
     <table class="widefat fixed striped">
         <thead>
@@ -22,5 +22,6 @@
         </tbody>
     </table>
 </div>
+
 
 

@@ -2,6 +2,9 @@
 <div class="wrap">
     <div class="tablenav top">
         <div class="alignleft actions bulkactions">
+            <label style="margin-right:12px;"><input type="checkbox" id="itnf-bulk-regen-seo" /> <?php esc_html_e('Regenerate SEO','it-news-fetcher'); ?></label>
+            <label style="margin-right:12px;"><input type="checkbox" id="itnf-bulk-apply-slug" /> <?php esc_html_e('Also update slug (creates redirect)','it-news-fetcher'); ?></label>
+
             <button id="itnf-reload-list" class="button"><?php esc_html_e('Reload List','it-news-fetcher'); ?></button>
             <button id="itnf-rewrite-selected" class="button button-primary"><?php esc_html_e('Rewrite Selected','it-news-fetcher'); ?></button>
             <span id="itnf-bulk-status" class="itnf-inline-status"></span>
