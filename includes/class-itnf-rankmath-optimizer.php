@@ -38,17 +38,124 @@ class ITNF_RankMath_Optimizer {
         
         $text = strtolower($text);
         $text = str_replace(array('&amp;', '&'), ' and ', $text);
-        $text = preg_replace('/[^a-z0-9\s\-]/', ' ', $text);
-        $text = preg_replace('/\s+/', ' ', $text);
-        $text = trim($text);
-        $parts = explode(' ', $text);
-        $parts = array_slice($parts, 0, 7);
-        return trim(implode(' ', $parts));
 
+        // collapse whitespace and punctuation to single spaces
+        $text = preg_replace('~[^\p{L}\p{Nd}\s-]+~u', ' ', $text);
+        $text = preg_replace('~\s+~u', ' ', $text);
+        $text = trim($text);
+
+        // limit to ~7 words
+        $parts = preg_split('~\s+~u', $text);
+        if (count($parts) > 7) {
+            $parts = array_slice($parts, 0, 7);
+        }
+        return trim(implode(' ', $parts));
     }
 
-    /** Quickly check if string contains focus (case-insensitive) */
+    /** Insert keyword into string if missing, optionally at beginning */
+    private static function ensure_keyword($haystack, $focus, $at_beginning = true){
+        $haystack = (string)$haystack;
+        $focus = trim((string)$focus);
+        if (!$focus) return $haystack;
+
+        if (stripos($haystack, $focus) !== false) return $haystack;
+
+        if ($at_beginning) {
+            $sep = (strlen($haystack) && $haystack[0] !== ' ') ? ' ' : '';
+            return $focus.$sep.$haystack;
+        } else {
+            $sep = (strlen($haystack) && substr($haystack, -1) !== ' ') ? ' ' : '';
+            return $haystack.$sep.$focus;
+        }
+    }
+
+    /** Add internal link from settings pool if none exists */
+    private static function ensure_internal_link($html){
+        if (!$html) return $html;
+        if (preg_match('~<a[^>]+href=["\']\/[^"\']+["\']~i', $html)) return $html; // already has internal
+
+        $opts = get_option('it_news_fetcher_options');
+        $pool = isset($opts['rm_internal_links']) && is_array($opts['rm_internal_links']) ? $opts['rm_internal_links'] : array();
+        $pool = array_values(array_filter(array_map('trim', $pool)));
+        if (!$pool) return $html;
+
+        $href = $pool[array_rand($pool)];
+        $anchor = esc_html(wp_parse_url($href, PHP_URL_PATH) ?: 'read more');
+        $a = '<p><a href="'.esc_url($href).'">'.$anchor.'</a></p>';
+
+        // insert after first paragraph if exists, else prepend
+        if (preg_match('/<\/p>/i', $html)){
+            return preg_replace('/<\/p>/i', '</p>'.$a, $html, 1);
+        }
+        return $a.$html;
+    }
+
+    /** Ensure at least one subheading contains the focus */
+    private static function ensure_focus_subheading($html, $focus){
+        if (!$html || !$focus) return $html;
+        if (preg_match('~<(h2|h3|h4)[^>]*>.*?'.preg_quote($focus,'~').'.*?<\/\1>~iu', $html)) {
+            return $html;
+        }
+        // add an h2 after the lead
+        $insertion = '<h2>'.esc_html($focus).'</h2>';
+        if (preg_match('/<\/p>/i', $html)){
+            return preg_replace('/<\/p>/i', '</p>'.$insertion, $html, 1);
+        }
+        return $insertion.$html;
+    }
+
+    /** Ensure images have alt with focus where possible */
+    private static function ensure_image_alts($html, $focus){
+        if (!$html || !$focus) return $html;
+        // add alt to imgs missing it
+        $html = preg_replace_callback('~<img([^>]*?)>~i', function($m) use ($focus){
+            $tag = $m[0];
+            $attrs = $m[1];
+            if (!preg_match('~\salt=~i', $attrs)){
+                // insert alt attribute
+                $tag = preg_replace('~<img~i', '<img alt="'.esc_attr($focus).'"', $tag, 1);
+            }
+            return $tag;
+        }, $html);
+        return $html;
+    }
+
+    /** Split paragraphs that are too long */
+    private static function split_long_paragraphs($html){
+        if (!$html) return $html;
+        $maxChars = 900; // approx ~150-180 words
+        return preg_replace_callback('~<p[^>]*>.*?<\/p>~is', function($m) use ($maxChars){
+            $p = $m[0];
+            $plain = wp_strip_all_tags($p);
+            if (function_exists('mb_strlen') ? mb_strlen($plain) : strlen($plain) < $maxChars){
+                return $p;
+            }
+            // naive split by sentences
+            $parts = preg_split('~(?<=[\.\!\?])\s+~u', $plain);
+            $chunks = array();
+            $cur = '';
+            foreach($parts as $s){
+                $next = ($cur ? $cur.' ' : '').$s;
+                if ((function_exists('mb_strlen') ? mb_strlen($next) : strlen($next)) > $maxChars){
+                    if ($cur) { $chunks[] = $cur; $cur = $s; }
+                    else { $chunks[] = $s; $cur = ''; }
+                } else {
+                    $cur = $next;
+                }
+            }
+            if ($cur) $chunks[] = $cur;
+            $out = '';
+            foreach ($chunks as $c){
+                $out .= '<p>'.esc_html($c).'</p>';
+            }
+            return $out ?: $p;
+        }, $html);
+    }
+
+    /** Does haystack contain focus (case-insensitive) */
     private static function contains_focus($haystack, $focus){
+        $haystack = (string)$haystack;
+        $focus = trim((string)$focus);
         if (!$focus) return false;
         return (stripos($haystack, $focus) !== false);
     }
@@ -63,133 +170,41 @@ class ITNF_RankMath_Optimizer {
         if (preg_match('/<p[^>]*>(.*?)<\/p>/is', $html, $m, PREG_OFFSET_CAPTURE)){
             $p = $m[1][0];
             $full = $m[0][0];
-            if (!self::contains_focus(strip_tags($p), $focus)){
-                // Prepend a short sentence with the focus at the start.
-                $lead = '<p><strong>'.esc_html($focus).'</strong> — ';
-                // use first sentence of original p if available
-                $sentence = preg_split('/(\.|\!|\?)\s/', wp_strip_all_tags($p), 2);
-                $lead .= esc_html( trim($sentence[0]) ) . '.</p>';
-                $html = str_replace($full, $lead.$full, $html);
+            if (!self::contains_focus($p, $focus)){
+                $p2 = self::ensure_keyword($p, $focus, true);
+                $html = substr($html, 0, $m[0][1]).str_replace($p, $p2, $full).substr($html, $m[0][1] + strlen($full));
             }
         } else {
-            // No paragraph at all, just prepend one
-            $html = '<p><strong>'.esc_html($focus).'</strong> — Latest update.</p>'.$html;
+            // no <p>, prepend a lead paragraph
+            $html = '<p>'.esc_html($focus).'</p>'.$html;
         }
         return $html;
     }
 
-    /** Ensure at least one H2/H3 contains the focus */
-    private static function ensure_focus_subheading($html, $focus){
-        if (!$focus) return $html;
-        if (preg_match('/<(h2|h3)[^>]*>.*?<\/\1>/is', $html)){
-            if (!preg_match('/<(h2|h3)[^>]*>[^<]*'.preg_quote($focus,'/').'[^<]*<\/\1>/i', $html)){
-                // insert an H2 after first paragraph
-                $insertion = '<h2>'.esc_html(ucwords($focus)).'</h2>';
-                $html = preg_replace('/<\/p>/i', '</p>'.$insertion, $html, 1);
-            }
-        } else {
-            $html = '<h2>'.esc_html(ucwords($focus)).'</h2>'.$html;
-        }
-        return $html;
-    }
-
-    /** Ensure at least one internal link exists */
-    private static function ensure_internal_link($html){
-        $opts = get_option('it_news_fetcher_options');
-        $pool = isset($opts['rm_internal_links']) ? $opts['rm_internal_links'] : '';
-        $targets = array();
-        foreach (preg_split('/[\r\n,]+/', $pool) as $u){
-            $u = trim($u);
-            if (!$u) continue;
-            if (strpos($u, 'http') === 0 || substr($u,0,1) === '/') $targets[] = $u;
-        }
-        if (empty($targets)){
-            // fallback to tech-news archive if it exists
-            $targets[] = home_url('/tech-news/');
-        }
-
-        // check if there is any internal link already
-        $home = home_url('/');
-        if (preg_match('/<a[^>]+href=["\']([^"\']+)["\']/i', $html, $m)){
-            // if any internal present, keep
-            if (strpos($m[1], $home) !== false || substr($m[1],0,1) === '/'){
-                return $html;
-            }
-        }
-        // inject a "Further reading" paragraph near the end
-        $t = $targets[array_rand($targets)];
-        $para = '<p><em>Further reading:</em> <a href="'.esc_url($t).'">related insights</a>.</p>';
-        if (preg_match('/<\/p>(?!.*<\/p>)/is', $html)){
-            $html = preg_replace('/<\/p>(?!.*<\/p>)/is', '</p>'.$para, $html, 1);
-        } else {
-            $html .= $para;
-        }
-        return $html;
-    }
-
-    /** Ensure at least one image alt contains focus; add alt to all images missing it */
-    private static function ensure_image_alts($html, $focus){
-        return preg_replace_callback('/<img([^>]+)>/i', function($m) use ($focus){
-            $tag = $m[0]; $attrs = $m[1];
-            if (stripos($attrs, 'alt=') !== false){
-                // if alt exists but doesn't include focus, keep as-is (avoid over-optimization)
-                return $tag;
-            }
-            $alt = esc_attr($focus ?: 'illustration');
-            // insert alt attribute before closing bracket
-            $new = '<img'.$attrs.' alt="'.$alt.'">';
-            return $new;
-        }, $html);
-    }
-
-    /** Split very long paragraphs (> 220 words) for readability */
-    private static function split_long_paragraphs($html){
-        return preg_replace_callback('/<p[^>]*>(.*?)<\/p>/is', function($m){
-            $inside = trim($m[1]);
-            $words = preg_split('/\s+/', wp_strip_all_tags($inside));
-            if (count($words) <= 220) return $m[0];
-            // split into two <p> by sentence boundary
-            $parts = preg_split('/(\.|\!|\?)\s+/u', $inside, 2);
-            if (count($parts) == 2){
-                return '<p>'.$parts[0].'.</p><p>'.$parts[1].'</p>';
-            }
-            return $m[0];
-        }, $html);
-    }
-
-    /** Optimize slug to include focus (optional) */
+    /** Optimize slug once (respects _itnf_slug_locked and _itnf_ai_slug rules) */
     private static function maybe_optimize_slug($post_id, $focus){
-        $opts = get_option('it_news_fetcher_options');
-        if (empty($opts['rm_optimize_slug'])) return;
-        if (!$focus) return;
-    
-        // allow a per-post bypass
-        if (get_post_meta($post_id, '_itnf_slug_never_touch', true)) return;
-    
-        // never change a slug more than once via optimizer
-        if (get_post_meta($post_id, '_itnf_slug_locked', true)) return;
-    
-        $p = get_post($post_id);
-        if (!$p) return;
-    
-        // respect manual editor activity
-        if (get_post_meta($post_id, '_edit_last', true)) return;
-    
-        // only adjust within 10 minutes of creation to avoid late fights or redirects
-        $created_gmt = $p->post_date_gmt ? strtotime($p->post_date_gmt) : strtotime($p->post_date);
-        if ($created_gmt && (time() - $created_gmt) > 10 * 60) return;
-    
-        $slug = $p->post_name ?: sanitize_title($p->post_title);
-        $focus_slug = sanitize_title($focus);
-    
-        // already contains focus... done
-        if (false !== strpos($slug, $focus_slug)) return;
-    
-        // let WP handle uniqueness
-        $desired = sanitize_title($focus_slug.' '.$slug);
-    
-        // update and lock
-        wp_update_post(array('ID' => $post_id, 'post_name' => $desired));
+        $locked = get_post_meta($post_id, '_itnf_slug_locked', true);
+        if ($locked) return;
+
+        $ai_slug = get_post_meta($post_id, '_itnf_ai_slug', true);
+        if ($ai_slug) {
+            // AI slug already chosen at initial insert; lock it now
+            add_post_meta($post_id, '_itnf_slug_locked', 1, true);
+            return;
+        }
+
+        $slug = get_post_field('post_name', $post_id);
+        $title = get_the_title($post_id);
+        $base = $focus ? $focus : $title;
+        $base = sanitize_title_with_dashes($base, '', 'save');
+        if (!$base) $base = sanitize_title_with_dashes($title, '', 'save');
+
+        if ($base && $base !== $slug){
+            $unique = wp_unique_post_slug($base, $post_id, get_post_status($post_id), get_post_type($post_id), 0);
+            wp_update_post(array('ID'=>$post_id, 'post_name'=>$unique));
+        }
+
+        // lock once we have set a slug, to avoid thrashing
         add_post_meta($post_id, '_itnf_slug_locked', 1, true);
 }
 
@@ -206,10 +221,15 @@ class ITNF_RankMath_Optimizer {
         $seo_title = get_post_meta($post_id, 'rank_math_title', true);
         if (!$seo_title){
             $seo_title = get_the_title($post_id);
+            if (!$seo_title) $seo_title = 'Tech News';
         }
-        if ($focus && stripos($seo_title, $focus) !== 0){
-            $seo_title = $focus.' – '.$seo_title;
+        if ($focus){
+            // Ensure keyword at the beginning
+            if (stripos($seo_title, $focus) !== 0){
+                $seo_title = self::ensure_keyword($seo_title, $focus, true);
+            }
         }
+        // clamp to 60 chars
         $seo_title = function_exists('mb_substr') ? mb_substr($seo_title, 0, 60) : substr($seo_title, 0, 60);
         update_post_meta($post_id, 'rank_math_title', $seo_title);
 
@@ -251,4 +271,14 @@ class ITNF_RankMath_Optimizer {
         // Slug
         self::maybe_optimize_slug($post_id, $focus);
     }
+
+    /**
+     * Touch optimizer: thin wrapper to keep backward compatibility with callers expecting touch_post().
+     * Does not change optimization rules; simply delegates to optimize_post().
+     */
+    public static function touch_post($post_id, $source_url=''){
+        // Maintain existing behavior flags in options; do not force if rm_force_green is off.
+        return self::optimize_post($post_id, $source_url);
+    }
+
 }

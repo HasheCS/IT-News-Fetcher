@@ -3,7 +3,11 @@ if (!defined('ABSPATH')) { exit; }
 
 class ITNF_Settings {
     public static function register(){
-        register_setting('it_news_fetcher_options', 'it_news_fetcher_options', ['sanitize_callback'=>[__CLASS__,'sanitize']]);
+        register_setting(
+            'it_news_fetcher_options',
+            'it_news_fetcher_options',
+            ['sanitize_callback'=>[__CLASS__,'sanitize']]
+        );
 
         add_settings_section('itnf_main','Main Settings', function(){
             echo '<p>'.esc_html__('Enter feed URLs (comma- or newline-separated), frequency, items per feed, and optional defaults.','it-news-fetcher').'</p>';
@@ -110,8 +114,8 @@ class ITNF_Settings {
         $o = get_option('it_news_fetcher_options');
         $minw = $o['openai_target_words_min'] ?? 1200;
         $maxw = $o['openai_target_words_max'] ?? 1500;
-        echo "<input type='number' min='300' name='it_news_fetcher_options[openai_target_words_min]' value='".esc_attr((int)$minw)."' style='width:90px'> – ";
-        echo "<input type='number' min='350' name='it_news_fetcher_options[openai_target_words_max]' value='".esc_attr((int)$maxw)."' style='width:90px'>";
+        echo "<input type='number' min='300' name='it_news_fetcher_options[openai_target_words_min]' value='".esc_attr((int)$minw)."'> – ";
+        echo "<input type='number' min='350' name='it_news_fetcher_options[openai_target_words_max]' value='".esc_attr((int)$maxw)."'>";
     }
     public static function field_openai_tokens(){
         $o = get_option('it_news_fetcher_options'); $v = $o['openai_max_tokens'] ?? 2400;
@@ -144,5 +148,16 @@ class ITNF_Settings {
     public static function field_rm_internal_links(){
         $o = get_option('it_news_fetcher_options'); $val = $o['rm_internal_links'] ?? '';
         echo "<textarea name='it_news_fetcher_options[rm_internal_links]' rows='3' cols='100' placeholder='/tech-news/&#10;/blog/&#10;https://www.hashe.com/services/'>".esc_textarea($val)."</textarea>";
+    }
+
+    /**
+     * Hook that runs after options update to reschedule cron
+     */
+    public static function init_hooks() {
+        add_action('update_option_it_news_fetcher_options', function($old, $new) {
+            if ( class_exists('ITNF_Cron') ) {
+                ITNF_Cron::schedule(true);
+            }
+        }, 10, 2);
     }
 }

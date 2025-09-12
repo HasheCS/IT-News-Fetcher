@@ -2,21 +2,33 @@
 if (!defined('ABSPATH')) { exit; }
 
 class ITNF_Cron {
+
     public static function activate(){
-        self::schedule();
+        self::schedule(true); // force on activation
         flush_rewrite_rules();
     }
+
     public static function deactivate(){
         wp_clear_scheduled_hook('itnf_cron_event');
         flush_rewrite_rules();
     }
-    public static function schedule(){
+
+    /**
+     * Schedule or reschedule the cron event
+     * @param bool $force - if true, always clear & reschedule
+     */
+    public static function schedule($force = false){
         $o = get_option('it_news_fetcher_options');
         $freq = $o['frequency'] ?? 'daily';
-        if (!wp_next_scheduled('itnf_cron_event')) {
+
+        // if force OR frequency changed -> clear and reschedule
+        $current = wp_get_schedule('itnf_cron_event');
+        if ($force || $current !== $freq) {
+            wp_clear_scheduled_hook('itnf_cron_event');
             wp_schedule_event(time(), $freq, 'itnf_cron_event');
         }
     }
+
     public static function run(){
         // Cron processes all feeds sequentially
         $feeds = ITNF_Helpers::parse_feeds_option();
