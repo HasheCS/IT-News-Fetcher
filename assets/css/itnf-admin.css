@@ -1,7 +1,7 @@
-.itnf-log{margin-top:8px;max-height:360px;overflow:auto;border:1px solid #ccd0d4;background:#fff;padding:10px;font-family:monospace;white-space:pre-wrap;}
+.itnf-log{margin-top:8px;max-height:360px;overflow:auto;border:1px solid #ccd0d4;background: #000000;padding:10px;font-family:monospace;white-space:pre-wrap;color: #00ff0a;}
 .itnf-table-wrap{border:1px solid #ccd0d4;background:#fff;margin-top:8px;}
 /* Bulk Rewrite layout polish */
-.itnf-inline-status { margin-left: 10px; }
+.itnf-inline-status {margin-left: 10px;}
 .itnf-bulk-table .column-word_count { width: 120px; text-align: right; }
 .itnf-bulk-table .column-post_id   { width: 100px; text-align: right; }
 .itnf-bulk-table .column-date      { width: 180px; white-space: nowrap; }
